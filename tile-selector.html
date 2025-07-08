@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Roblox Tile Selector</title>
+    <meta name="viewport" content="initial-scale=1.0">
+    <meta charset="utf-8">
+    <style>
+        #map { height: 80vh; }
+        .coordinates { background: white; padding: 5px; }
+        .density { margin-top: 10px; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div class="coordinates">
+        <p>Selected Area: <span id="coordinates">Not selected</span></p>
+        
+        <!-- NEW: Density selector -->
+        <div class="density">
+            <label for="density">Tile Density: </label>
+            <select id="density">
+                <option value="1">1x1 (Low)</option>
+                <option value="2">2x2 (Medium)</option>
+                <option value="3">3x3 (High)</option>
+                <option value="4">4x4 (Very High)</option>
+            </select>
+        </div>
+        
+        <button id="copyBtn">Copy Parameters</button>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/ol@v7.3.0/dist/ol.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@v7.3.0/ol.css">
+    
+    <script>
+        // Initialize map
+        const map = new ol.Map({
+            target: 'map',
+            layers: [
+                new ol.layer.Tile({
+                    source: new ol.source.OSM()
+                })
+            ],
+            view: new ol.View({
+                center: ol.proj.fromLonLat([0, 0]),
+                zoom: 2
+            })
+        });
+
+        // Selection tools
+        let startCoord, endCoord;
+        const selection = new ol.interaction.Draw({
+            source: new ol.source.Vector(),
+            type: 'Circle',
+            geometryFunction: ol.interaction.Draw.createBox()
+        });
+
+        map.addInteraction(selection);
+        
+        // Coordinate display
+        selection.on('drawstart', (e) => {
+            startCoord = ol.proj.toLonLat(e.coordinate);
+        });
+
+        selection.on('drawend', (e) => {
+            endCoord = ol.proj.toLonLat(e.coordinate);
+            updateCoordinates();
+        });
+
+        function updateCoordinates() {
+            if (startCoord && endCoord) {
+                const zoom = map.getView().getZoom().toFixed(0);
+                const tile1 = lonLatToTile(startCoord[0], startCoord[1], zoom);
+                const tile2 = lonLatToTile(endCoord[0], endCoord[1], zoom);
+                
+                const minX = Math.min(tile1.x, tile2.x);
+                const maxX = Math.max(tile1.x, tile2.x);
+                const minY = Math.min(tile1.y, tile2.y);
+                const maxY = Math.max(tile1.y, tile2.y);
+                
+                document.getElementById('coordinates').textContent = 
+                    `Zoom: ${zoom}, Tiles: X:${minX}-${maxX}, Y:${minY}-${maxY}`;
+                
+                // Store parameters for copying
+                const density = document.getElementById('density').value;
+                document.getElementById('copyBtn').dataset.params = 
+                    `${zoom},${minX},${minY},${maxX},${maxY},${density}`;
+            }
+        }
+
+        // Convert longitude/latitude to tile coordinates
+        function lonLatToTile(lon, lat, zoom) {
+            const x = (lon + 180) / 360;
+            const y = (1 - Math.log(Math.tan(lat * Math.PI / 180) + 
+                  1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2;
+            
+            const n = Math.pow(2, zoom);
+            return {
+                x: Math.floor(x * n),
+                y: Math.floor(y * n)
+            };
+        }
+
+        // Copy functionality
+        document.getElementById('copyBtn').addEventListener('click', () => {
+            const params = document.getElementById('copyBtn').dataset.params;
+            if (params) {
+                navigator.clipboard.writeText(params)
+                    .then(() => alert('Parameters copied to clipboard!'))
+                    .catch(err => console.error('Copy failed:', err));
+            }
+        });
+    </script>
+</body>
+</html>
